@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Student Allocation &amp; Grouping Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
+      </svg>
+    </div>
+    <div>
+      <h1>Student Allocation &amp; Grouping Board</h1>
+      <p class="sub">Assign students into Phase 1 / Phase 2 groups and record distribution preferences</p>
+    </div>
+  </div>
+
+  <div class="topbar-actions">
+    <span id="syncPill" class="pill pill-idle" title="Sync status">Starting…</span>
+    <button id="btnAuto" class="btn btn-ghost" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 2 4 4-4 4"/><path d="M2 6h4c4 0 5 12 9 12h7"/><path d="m18 22 4-4-4-4"/><path d="M2 18h4"/></svg>
+      Auto-allocate
+    </button>
+    <button id="btnAdd" class="btn btn-primary" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      Add student
+    </button>
+  </div>
+</header>
+
+<div id="banner" class="banner" hidden>
+  <span id="bannerText"></span>
+  <span class="banner-actions">
+    <button id="bannerReload" class="btn btn-tiny" type="button">Load sheet version</button>
+    <button id="bannerKeep" class="btn btn-tiny btn-quiet" type="button">Keep my changes</button>
+  </span>
+</div>
+
+<section class="stats" aria-label="Summary counts">
+  <div class="stat"><span class="stat-label">Total students</span><span class="stat-value" id="statTotal">0</span></div>
+  <div class="stat stat-amber"><span class="stat-label">Unassigned pool</span><span class="stat-value" id="statPool">0</span></div>
+  <div class="stat stat-blue"><span class="stat-label">Phase 1 assigned</span><span class="stat-value" id="statP1">0</span></div>
+  <div class="stat stat-green"><span class="stat-label">Phase 2 assigned</span><span class="stat-value" id="statP2">0</span></div>
+</section>
+
+<nav class="toolbar">
+  <div class="tabs" role="tablist">
+    <button class="tab is-active" role="tab" data-view="board" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Assignment board
+    </button>
+    <button class="tab" role="tab" data-view="sheet" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
+      Spreadsheet view
+    </button>
+    <button class="tab" role="tab" data-view="summary" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3v18h18"/><path d="M7 15v3M12 9v9M17 5v13"/></svg>
+      Summary breakdown
+    </button>
+  </div>
+
+  <div class="toolbar-right">
+    <div class="segmented" id="phaseSwitch">
+      <span class="segmented-label">Phase</span>
+      <button class="seg is-active" data-phase="1" type="button">Phase 1</button>
+      <button class="seg" data-phase="2" type="button">Phase 2</button>
+      <button class="seg" data-phase="all" type="button">All</button>
+    </div>
+    <label class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="search" type="search" placeholder="Search index, name, NIC…" autocomplete="off">
+    </label>
+  </div>
+</nav>
+
+<main id="main">
+  <div id="viewBoard" class="view"></div>
+  <div id="viewSheet" class="view" hidden></div>
+  <div id="viewSummary" class="view" hidden></div>
+</main>
+
+<!-- Student detail form -->
+<div id="modal" class="modal" hidden>
+  <div class="modal-scrim" data-close></div>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-head">
+      <div>
+        <h2 id="modalTitle">Student details</h2>
+        <p id="modalSub" class="sub"></p>
+      </div>
+      <button class="icon-btn" data-close type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <form id="studentForm" class="modal-body" novalidate>
+      <div class="field">
+        <label for="fIndex">Student index</label>
+        <input id="fIndex" name="index" list="studentIndexes" placeholder="230007J" autocomplete="off" required>
+        <datalist id="studentIndexes"></datalist>
+        <datalist id="areaList"></datalist>
+        <p class="hint" id="hintIndex">Pick from the student list, or type a new index.</p>
+      </div>
+
+      <div class="row-2">
+        <div class="field">
+          <label for="fTitle">Title</label>
+          <select id="fTitle" name="title"><option>Mr.</option><option>Ms.</option></select>
+        </div>
+        <div class="field">
+          <label for="fName">Name</label>
+          <input id="fName" name="name" placeholder="ABEYSEKARA G.L.M.P." autocomplete="off" required>
+        </div>
+      </div>
+
+      <div class="row-2">
+        <div class="field">
+          <label for="fNic">NIC</label>
+          <input id="fNic" name="nic" placeholder="200012345678" autocomplete="off">
+          <p class="hint" id="hintNic"></p>
+        </div>
+        <div class="field">
+          <label for="fMobile">Mobile number</label>
+          <input id="fMobile" name="mobile" placeholder="0771234567" inputmode="tel" autocomplete="off">
+          <p class="hint" id="hintMobile"></p>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="fEmail">Email</label>
+        <input id="fEmail" name="email" type="email" placeholder="name@example.com" autocomplete="off">
+        <p class="hint" id="hintEmail"></p>
+      </div>
+
+      <div class="row-2">
+        <div class="field">
+          <label for="fPref1">Preference 1 location</label>
+          <select id="fPref1" name="pref1"></select>
+        </div>
+        <div class="field">
+          <label for="fPref2">Preference 2 location</label>
+          <select id="fPref2" name="pref2"></select>
+        </div>
+      </div>
+      <p class="hint" id="hintPref"></p>
+    </form>
+
+    <div class="modal-foot">
+      <button id="btnClear" class="btn btn-quiet" type="button">Clear slot</button>
+      <div class="spacer"></div>
+      <button class="btn btn-ghost" data-close type="button">Cancel</button>
+      <button id="btnSaveStudent" class="btn btn-primary" type="button">Save details</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="config.js"></script>
+<script src="assets/seed.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
