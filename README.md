@@ -73,7 +73,7 @@ Confirm the four tabs are named exactly: `Student list`, `Student Data-Phase1`,
 **2. Open Apps Script.** In the spreadsheet: **Extensions → Apps Script**. Delete the
 `function myFunction() {}` stub in `Code.gs`.
 
-**3. Paste the backend.** Copy the whole of `apps-script/Code.gs` from this repo into the
+**3. Paste the backend.** Copy the whole of `Code.gs` from this repo into the
 editor.
 
 **4. Set your token.** Near the top, change:
@@ -119,16 +119,16 @@ spreadsheets in it. Useful if you run separate workbooks per intake.
 Pages on a free account.
 
 **2. Upload the files.** On the empty repo page, click **uploading an existing file**, drag
-in everything from this folder, and commit to `main`. Keep the structure:
+in everything from this folder, and commit to `main`. The repository currently uses this
+flat structure:
 
 ```
 index.html
 config.js
-assets/styles.css
-assets/app.js
-assets/seed.js
-apps-script/Code.gs
-.nojekyll
+styles.css
+app.js
+seed.js
+Code.gs
 ```
 
 Or, from a terminal:
@@ -209,7 +209,7 @@ numbers are personal data, so the third option is the safer default for real stu
 
 ## Running it without a sheet
 
-Leave `API_URL` empty and the board loads `assets/seed.js`, a snapshot of your workbook —
+Leave `API_URL` empty and the board loads `seed.js`, a snapshot of your workbook —
 90 students, 62 areas, and both phase layouts. Everything works except saving, and the
 pill reads "Demo mode". Useful for showing the interface before you wire up the backend.
 
