@@ -23,6 +23,11 @@ var S = {
   view:      'board',
   phase:     '1',
   search:    '',
+  rosterSearch: '',
+  rosterPhase: 'all',
+  rosterGroup: 'all',
+  rosterSort: 'index',
+  rosterAsc: true,
   picked:    null,          // index of a student clicked in the pool
   editing:   null,          // { phase, g, s } currently open in the modal
   dirty:     false,
@@ -357,6 +362,39 @@ function addStudent() {
   toast(index + ' added to the pool.');
 }
 
+function placementOf(idx) {
+  var found = null;
+  ['1', '2'].some(function (p) {
+    return S.phases[p].some(function (grp, g) {
+      return grp.slots.some(function (slot, s) {
+        if (slot.index !== idx) return false;
+        found = { phase: p, g: g, s: s, group: grp.name, slot: slot };
+        return true;
+      });
+    });
+  });
+  return found;
+}
+
+function deleteStudent(index) {
+  var st = studentByIndex(index);
+  if (!st || !window.confirm('Remove ' + (st.name || index) + ' from the roster?')) return;
+  ['1', '2'].forEach(function (p) {
+    S.phases[p].forEach(function (grp) {
+      grp.slots.forEach(function (slot) {
+        if (slot.index === index) {
+          slot.index = ''; slot.name = ''; slot.nic = ''; slot.email = '';
+          slot.mobile = ''; slot.pref1 = ''; slot.pref2 = '';
+        }
+      });
+    });
+  });
+  S.students = S.students.filter(function (student) { return student.index !== index; });
+  buildIndexDatalist();
+  markDirty(); render();
+  toast('Removed ' + index + ' from the roster.');
+}
+
 /* ================================================================== */
 /* Rendering — board                                                  */
 /* ================================================================== */
@@ -584,6 +622,64 @@ function renderSheet() {
   host.innerHTML = html;
 }
 
+function renderRoster() {
+  var host = $('#viewRoster');
+  var groups = {};
+  ['1', '2'].forEach(function (p) {
+    S.phases[p].forEach(function (grp, g) {
+      grp.slots.forEach(function (slot, s) {
+        if (slot.index) groups[p + '|' + slot.index] = { phase: p, g: g, s: s, group: grp.name, slot: slot };
+      });
+    });
+  });
+
+  var rows = S.students.map(function (st) {
+    var p = groups['1|' + st.index] || groups['2|' + st.index];
+    return { student: st, placement: p || null };
+  }).filter(function (row) {
+    var st = row.student, p = row.placement;
+    var query = S.rosterSearch;
+    var hay = [st.index, st.name, st.nic, p && p.group, p && ('phase ' + p.phase)].join(' ').toLowerCase();
+    if (query && hay.indexOf(query) === -1) return false;
+    if (S.rosterPhase === 'unassigned' && p) return false;
+    if (S.rosterPhase !== 'all' && S.rosterPhase !== 'unassigned' && (!p || p.phase !== S.rosterPhase)) return false;
+    if (S.rosterGroup !== 'all' && (!p || p.group !== S.rosterGroup)) return false;
+    return true;
+  }).sort(function (a, b) {
+    var av = S.rosterSort === 'name' ? a.student.name : S.rosterSort === 'group' ? ((a.placement && a.placement.group) || 'ZZZ') : a.student.index;
+    var bv = S.rosterSort === 'name' ? b.student.name : S.rosterSort === 'group' ? ((b.placement && b.placement.group) || 'ZZZ') : b.student.index;
+    return (String(av).localeCompare(String(bv))) * (S.rosterAsc ? 1 : -1);
+  });
+
+  var body = rows.length ? rows.map(function (row, i) {
+    var st = row.student, p = row.placement;
+    var phase = p ? '<span class="roster-status roster-p' + p.phase + '">Phase ' + p.phase + '</span>' : '<span class="roster-status roster-gap">Unassigned</span>';
+    var action = p
+      ? '<button class="btn btn-tiny btn-ghost" data-act="roster-edit" data-phase="' + p.phase + '" data-g="' + p.g + '" data-s="' + p.s + '" type="button">Edit</button>'
+      : '<button class="btn btn-tiny btn-primary" data-act="roster-assign" data-index="' + esc(st.index) + '" type="button">Assign</button>';
+    return '<tr>' +
+      '<td class="num">' + (i + 1) + '</td>' +
+      '<td><span class="chip">' + esc(st.index) + '</span></td>' +
+      '<td><strong>' + esc(st.name || 'Unnamed') + '</strong></td>' +
+      '<td>' + (st.nic ? '<span class="mono">' + esc(st.nic) + '</span>' : '<span class="muted">Not set</span>') + '</td>' +
+      '<td>' + phase + '</td>' +
+      '<td>' + esc(p ? p.group : '—') + '</td>' +
+      '<td class="roster-actions">' + action +
+        (p ? '<button class="icon-btn" data-act="roster-unassign" data-phase="' + p.phase + '" data-g="' + p.g + '" data-s="' + p.s + '" title="Unassign student" type="button">' + ICON_TRASH + '</button>' : '') +
+        '<button class="icon-btn danger" data-act="roster-delete" data-index="' + esc(st.index) + '" title="Delete student" type="button">' + ICON_TRASH + '</button>' +
+      '</td></tr>';
+  }).join('') : '<tr><td colspan="7"><p class="notice">No students match the current filters.</p></td></tr>';
+
+  host.innerHTML = '<div class="panel roster-panel">' +
+    '<div class="roster-toolbar"><label class="search roster-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input data-roster-control="search" value="' + esc(S.rosterSearch) + '" placeholder="Search index, name, NIC or group" type="search" autocomplete="off"></label>' +
+    '<label class="roster-filter">Status <select data-roster-control="phase"><option value="all"' + (S.rosterPhase === 'all' ? ' selected' : '') + '>All students</option><option value="unassigned"' + (S.rosterPhase === 'unassigned' ? ' selected' : '') + '>Unassigned</option><option value="1"' + (S.rosterPhase === '1' ? ' selected' : '') + '>Phase 1</option><option value="2"' + (S.rosterPhase === '2' ? ' selected' : '') + '>Phase 2</option></select></label>' +
+    '<label class="roster-filter">Group <select data-roster-control="group"><option value="all">All groups</option>' + S.phases['1'].concat(S.phases['2']).map(function (grp) { return '<option value="' + esc(grp.name) + '"' + (S.rosterGroup === grp.name ? ' selected' : '') + '>' + esc(grp.name) + '</option>'; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join('') + '</select></label>' +
+    '<label class="roster-filter">Sort <select data-roster-control="sort"><option value="index"' + (S.rosterSort === 'index' ? ' selected' : '') + '>Index</option><option value="name"' + (S.rosterSort === 'name' ? ' selected' : '') + '>Name</option><option value="group"' + (S.rosterSort === 'group' ? ' selected' : '') + '>Group</option></select></label>' +
+    '<button class="btn btn-tiny btn-ghost" data-act="roster-sort-direction" type="button">' + (S.rosterAsc ? 'ASC' : 'DESC') + '</button></div>' +
+    '<div class="panel-head"><div><h2>Master student roster</h2><p class="sub">' + rows.length + ' shown of ' + S.students.length + ' registered students</p></div><span class="spacer"></span><button class="btn btn-primary btn-tiny" data-act="add-student" type="button">+ Add student</button></div>' +
+    '<div class="table-wrap"><table class="roster-table"><thead><tr><th>#</th><th>Index</th><th>Student</th><th>NIC</th><th>Status</th><th>Group</th><th></th></tr></thead><tbody>' + body + '</tbody></table></div></div>';
+}
+
 /* ================================================================== */
 /* Rendering — summary                                                */
 /* ================================================================== */
@@ -701,10 +797,12 @@ function render() {
 
   $('#viewBoard').hidden   = S.view !== 'board';
   $('#viewSheet').hidden   = S.view !== 'sheet';
+  $('#viewRoster').hidden  = S.view !== 'roster';
   $('#viewSummary').hidden = S.view !== 'summary';
 
   if (S.view === 'board')   renderBoard();
   if (S.view === 'sheet')   renderSheet();
+  if (S.view === 'roster')  renderRoster();
   if (S.view === 'summary') renderSummary();
 }
 
@@ -986,6 +1084,11 @@ function wire() {
       if (a.act === 'slot-minus')   { removeEmptySlot(a.phase, +a.g); return; }
       if (a.act === 'add-student')  { addStudent(); return; }
       if (a.act === 'export')       { exportCSV(a.phase); return; }
+      if (a.act === 'roster-edit')  { openSlotForm(a.phase, +a.g, +a.s); return; }
+      if (a.act === 'roster-assign'){ openPoolForm(a.index); return; }
+      if (a.act === 'roster-unassign') { clearSlot(a.phase, +a.g, +a.s); return; }
+      if (a.act === 'roster-delete') { deleteStudent(a.index); return; }
+      if (a.act === 'roster-sort-direction') { S.rosterAsc = !S.rosterAsc; renderRoster(); return; }
     }
 
     // Click a pool card to pick it up, then click a slot to place it.
@@ -1011,8 +1114,22 @@ function wire() {
   // Inline editing in the spreadsheet view
   $('#main').addEventListener('input', onCellEdit);
   $('#main').addEventListener('change', onCellEdit);
+  $('#main').addEventListener('input', onRosterControl);
+  $('#main').addEventListener('change', onRosterControl);
 
   wireDnd();
+}
+
+function onRosterControl(e) {
+  var el = e.target;
+  if (!el.dataset || !el.dataset.rosterControl) return;
+  var key = el.dataset.rosterControl;
+  if (key === 'search') S.rosterSearch = el.value.trim().toLowerCase();
+  if (key === 'phase') S.rosterPhase = el.value;
+  if (key === 'group') S.rosterGroup = el.value;
+  if (key === 'sort') S.rosterSort = el.value;
+  clearTimeout(onRosterControl._timer);
+  onRosterControl._timer = setTimeout(renderRoster, key === 'search' ? 120 : 0);
 }
 
 function onCellEdit(e) {
