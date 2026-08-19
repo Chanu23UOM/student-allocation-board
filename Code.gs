@@ -25,7 +25,7 @@ var CONFIG = {
   DRIVE_FOLDER_ID: '',
 
   // Must match API_TOKEN in config.js. Change it before you deploy.
-  API_TOKEN: 'change-this-to-a-long-random-string',
+  API_TOKEN: 'abcdefghijklmnop',
 
   SHEETS: {
     list: 'Student list',
